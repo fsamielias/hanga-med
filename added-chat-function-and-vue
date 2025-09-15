@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Häng med App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap');
+        body {
+            font-family: 'Nunito Sans', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-[#F9FAFB]">
+    <div id="root"></div>
+
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        // --- HELPER DATA & FUNCTIONS ---
+        const { useState, useEffect } = React;
+
+        // Mock database of users
+        const USERS = [
+            { userID: 1, name: 'Sofia', email: 'sofia@example.com' },
+            { userID: 2, name: 'Erik', email: 'erik@example.com' },
+            { userID: 5, name: 'Filip', email: 'filip@example.com' }
+        ];
+
+        // MOCK DATABASE - EXPANDED FOR TESTING
+        const INITIAL_EVENTS = [
+            // Upcoming Events
+            { eventID: 101, title: 'Morgonfika på Vete-Katten', description: 'En klassisk svensk fika för att starta dagen.', category: 'Fika', location: 'Kungsgatan 55, Stockholm', dateTime: '2025-09-20T10:00:00', creatorUserID: 2, attendeeUserIDs: [2, 5] },
+            { eventID: 102, title: 'Avkopplande promenad i Djurgården', description: 'En fridfull promenad i vacker natur.', category: 'Walk', location: 'Djurgårdsbron, Stockholm', dateTime: '2025-09-21T14:30:00', creatorUserID: 1, attendeeUserIDs: [1, 5] },
+            { eventID: 103, title: 'Badminton i Frescatihallen', description: 'Vänskapsmatch i badminton, alla nivåer välkomna.', category: 'Sport', location: 'Frescatihallen, Stockholm', dateTime: '2025-09-22T18:00:00', creatorUserID: 1, attendeeUserIDs: [1] },
+            { eventID: 104, title: 'Lunch på Urban Deli', description: 'Trevlig lunch på Södermalm.', category: 'Lunch', location: 'Nytorget 4, Stockholm', dateTime: '2025-09-23T12:00:00', creatorUserID: 2, attendeeUserIDs: [2] },
+            { eventID: 105, title: 'Vernissage på Fotografiska', description: 'Utforska ny fotokonst.', category: 'Annat', location: 'Stadsgårdshamnen 22, Stockholm', dateTime: '2025-09-24T17:00:00', creatorUserID: 5, attendeeUserIDs: [5, 1, 2] },
+        ];
+
+        // Mock database for chat messages
+        const INITIAL_CHAT_MESSAGES = {
+            101: [{ messageID: 1, userID: 2, text: "Ska bli så mysigt! Jag är där prick kl 10.", timestamp: "2025-09-20T09:30:00" }, { messageID: 2, userID: 5, text: "Absolut, jag ser fram emot det!", timestamp: "2025-09-20T09:32:00" }],
+            102: [{ messageID: 3, userID: 1, text: "Vilket härligt väder det ser ut att bli!", timestamp: "2025-09-21T10:00:00" }]
+        };
+
+        const formatDateTime = (isoString) => {
+            const date = new Date(isoString);
+            const options = { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+            return date.toLocaleDateString('sv-SE', options);
+        };
+
+        const Icons = {
+            search: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" x2="16.65" y1="21" y2="16.65"></line></svg>),
+            home: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>),
+            calendar: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>),
+            user: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>),
+            plus: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="5" y2="19"></line><line x1="5" x2="19" y1="12" y2="12"></line></svg>),
+            arrowLeft: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>),
+            logOut: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg>),
+            users: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>),
+            mapPin: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>),
+            clock: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>),
+            send: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>),
+            messageCircle: (props) => (<svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>),
+        };
+
+        const ActionButton = ({ onClick, children, className = '', type = "button" }) => (
+            <button
+                type={type}
+                onClick={onClick}
+                className={`w-full text-white font-bold py-3 px-4 rounded-full bg-[#8F9D81] hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8F9D81] transition-all duration-300 shadow-sm ${className}`}
+            >
+                {children}
+            </button>
+        );
+
+        const BottomNav = ({ activeView, onNavigate }) => {
+            const navItems = [
+                { view: 'home', icon: Icons.home, label: 'Träffar' },
+                { view: 'my-events', icon: Icons.calendar, label: 'Mina träffar' },
+                { view: 'chat', icon: Icons.messageCircle, label: 'Chattar' },
+                { view: 'profile', icon: Icons.user, label: 'Profil' }
+            ];
+            return (
+                <div className="flex justify-around items-center p-2 bg-white/80 backdrop-blur-sm border-t border-slate-200/50 mt-auto">
+                    {navItems.map(item => {
+                        const isActive = activeView === item.view;
+                        return (
+                            <button
+                                key={item.view}
+                                onClick={() => onNavigate(item.view)}
+                                className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors duration-200 relative ${isActive ? 'text-[#334155]' : 'text-slate-400 hover:text-[#334155]'}`}
+                            >
+                                <item.icon className="w-6 h-6" />
+                                <span className="text-xs font-medium">{item.label}</span>
+                                {isActive && <div className="absolute -bottom-1 h-1 w-1 bg-[#334155] rounded-full"></div>}
+                            </button>
+                        );
+                    })}
+                </div>
+            );
+        };
+        
+        const LoginScreen = ({ users, onLogin, onNavigate }) => {
+            const [selectedUserId, setSelectedUserId] = useState(users[0]?.userID || '');
+            const handleLogin = (e) => {
+                e.preventDefault();
+                const user = USERS.find(u => u.userID === parseInt(selectedUserId));
+                if (user) onLogin(user);
+            };
+            return (
+                <div className="h-full flex flex-col justify-center items-center p-8 bg-[#F9FAFB]">
+                    <h1 className="text-5xl font-bold mb-4 text-[#8F9D81]">Häng med</h1>
+                    <p className="text-[#334155] mb-8 text-center">Upptäck och skapa trevliga träffar nära dig.</p>
+                    <form onSubmit={handleLogin} className="w-full max-w-xs space-y-4">
+                        <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className="w-full px-4 py-3 border border-slate-200/80 rounded-full focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white">
+                            {users.map(user => <option key={user.userID} value={user.userID}>{user.name}</option>)}
+                        </select>
+                        <ActionButton type="submit">Logga in</ActionButton>
+                    </form>
+                    <button onClick={() => onNavigate('signup')} className="text-sm text-[#334155] mt-4 hover:underline">Inget konto? Skapa ett</button>
+                </div>
+            );
+        };
+
+        const SignUpScreen = ({ onSignUp, onNavigate }) => {
+            const [name, setName] = useState('');
+            const [email, setEmail] = useState('');
+            const handleSignUp = (e) => {
+                e.preventDefault();
+                if (name.trim() && email.trim()) onSignUp({ name, email });
+            };
+            return (
+                <div className="h-full flex flex-col justify-center items-center p-8 bg-[#F9FAFB]">
+                    <h1 className="text-4xl font-bold mb-4 text-[#8F9D81]">Gå med oss</h1>
+                    <p className="text-[#334155] mb-8 text-center">Skapa ditt konto för att börja.</p>
+                    <form onSubmit={handleSignUp} className="w-full max-w-xs space-y-4">
+                        <div><input type="text" placeholder="Ditt namn" value={name} onChange={e => setName(e.target.value)} required className="w-full px-4 py-3 border border-slate-200/80 rounded-full focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white" /></div>
+                        <div><input type="email" placeholder="Din e-post" value={email} onChange={e => setEmail(e.target.value)} required className="w-full px-4 py-3 border border-slate-200/80 rounded-full focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white" /></div>
+                        <div><input type="password" placeholder="Lösenord" required className="w-full px-4 py-3 border border-slate-200/80 rounded-full focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white" /></div>
+                        <ActionButton type="submit">Skapa konto</ActionButton>
+                    </form>
+                    <button onClick={() => onNavigate('login')} className="text-sm text-[#334155] mt-4 hover:underline">Har du redan ett konto? Logga in</button>
+                </div>
+            );
+        };
+
+        const HomeScreen = ({ events, onNavigate, currentUser }) => {
+            const [activeFilter, setActiveFilter] = useState('Alla');
+            const categories = ['Alla', ...new Set(events.map(e => e.category))];
+            
+            const filteredEvents = events.filter(event => {
+                if (activeFilter === 'Alla') return true;
+                return event.category === activeFilter;
+            }).sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+
+            return (
+                <div className="flex flex-col h-full bg-[#F9FAFB]">
+                    <header className="p-6 border-b border-slate-200/50 bg-[#F9FAFB]/80 backdrop-blur-sm sticky top-0 z-10">
+                        <h1 className="text-3xl font-bold text-[#8F9D81]">Träffar</h1>
+                        <p className="text-[#334155] mt-1">Hej {currentUser.name}, hitta något att göra!</p>
+                        <div className="flex gap-2 mt-4 overflow-x-auto pb-2 -mb-2">
+                            {categories.map(category => (
+                                <button 
+                                    key={category}
+                                    onClick={() => setActiveFilter(category)}
+                                    className={`px-4 py-1.5 text-sm font-semibold rounded-full whitespace-nowrap transition-colors ${activeFilter === category ? 'bg-[#8F9D81] text-white' : 'bg-white text-[#334155] hover:bg-slate-100'}`}
+                                >
+                                    {category}
+                                </button>
+                            ))}
+                        </div>
+                    </header>
+                    <main className="flex-grow overflow-y-auto p-6 space-y-4">
+                        {filteredEvents.map(event => {
+                            const isJoined = event.attendeeUserIDs.includes(currentUser.userID);
+                            return (
+                                <div key={event.eventID} onClick={() => onNavigate('details', event.eventID)} className="p-4 rounded-xl shadow-sm cursor-pointer transition-all bg-white hover:shadow-md relative border border-transparent">
+                                    <div className="flex items-start gap-4">
+                                        <div className="flex-1">
+                                            <p className="font-bold text-[#334155]">{event.title}</p>
+                                            <p className="text-sm text-[#334155]">{event.category}</p>
+                                            <div className="text-xs text-[#334155]/80 mt-2 flex items-center gap-2">
+                                                <Icons.clock className="w-3 h-3" />
+                                                <span className="font-bold">{formatDateTime(event.dateTime)}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center text-sm text-blue-600 font-semibold">
+                                            <Icons.users className="w-4 h-4 mr-1" />
+                                            <span>{event.attendeeUserIDs.length}</span>
+                                        </div>
+                                        {isJoined && <div className="absolute bottom-3 right-3 h-2.5 w-2.5 bg-[#8F9D81] rounded-full"></div>}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </main>
+                </div>
+            );
+        };
+        
+        const ChatComponent = ({ eventId, messages, users, currentUser, onSendMessage }) => {
+            const [newMessage, setNewMessage] = useState('');
+            const handleSend = (e) => {
+                e.preventDefault();
+                if (newMessage.trim()) {
+                    onSendMessage(eventId, newMessage);
+                    setNewMessage('');
+                }
+            };
+            return (
+                <div className="bg-white p-5 rounded-xl shadow-sm">
+                    <div className="space-y-4 max-h-48 overflow-y-auto pr-2">
+                        {messages.map(message => {
+                            const sender = users.find(u => u.userID === message.userID);
+                            const isCurrentUser = sender.userID === currentUser.userID;
+                            return (
+                                <div key={message.messageID} className={`flex items-end gap-2 ${isCurrentUser ? 'justify-end' : ''}`}>
+                                    {!isCurrentUser && (
+                                        <div className="w-8 h-8 rounded-full bg-[#F5EBE0] flex items-center justify-center font-bold text-[#334155]/70 text-sm flex-shrink-0">
+                                            {sender.name.charAt(0)}
+                                        </div>
+                                    )}
+                                    <div className={`max-w-xs p-3 rounded-2xl ${isCurrentUser ? 'bg-[#8F9D81] text-white rounded-br-none' : 'bg-slate-100 text-[#334155] rounded-bl-none'}`}>
+                                        <p className="text-sm">{message.text}</p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {messages.length === 0 && <p className="text-sm text-slate-400 text-center py-4">Inga meddelanden än. Bli den första att skriva!</p>}
+                    </div>
+                     <form onSubmit={handleSend} className="mt-4 flex items-center gap-2">
+                        <input 
+                            type="text" 
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder="Skriv ett meddelande..."
+                            className="w-full p-2 border border-slate-200/80 rounded-full focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white"
+                        />
+                        <button type="submit" className="p-2.5 rounded-full bg-[#8F9D81] text-white hover:opacity-90 transition-opacity">
+                            <Icons.send className="w-5 h-5" />
+                        </button>
+                    </form>
+                </div>
+            );
+        };
+        
+        const EventDetailsScreen = ({ eventId, events, users, currentUser, onJoin, onLeave, onNavigate, chatMessages, onSendMessage }) => {
+            const event = events.find(e => e.eventID === eventId);
+            if (!event) return <div className="p-4">Träffen hittades inte.</div>;
+            const creator = users.find(u => u.userID === event.creatorUserID);
+            const attendees = event.attendeeUserIDs.map(id => users.find(u => u.userID === id));
+            const hasJoined = event.attendeeUserIDs.includes(currentUser.userID);
+            
+            return (
+                <div className="flex flex-col h-full bg-[#F9FAFB]">
+                    <header className="p-4 flex items-center gap-4 border-b border-slate-200/50 bg-white/50 backdrop-blur-sm">
+                        <button onClick={() => onNavigate('home')} className="p-2 rounded-full hover:bg-slate-100/60">
+                            <Icons.arrowLeft className="w-6 h-6 text-[#334155]" />
+                        </button>
+                    </header>
+                    <main className="flex-grow overflow-y-auto p-6 space-y-6">
+                        <div className="bg-white p-5 rounded-xl shadow-sm space-y-4">
+                            <div className="flex items-center gap-4">
+                                <div><h2 className="text-2xl font-bold text-[#334155]">{event.title}</h2></div>
+                            </div>
+                            <p className="text-[#334155]/80">{event.description}</p>
+                            <div className="space-y-3 pt-2 text-[#334155]">
+                                <div className="flex items-center gap-3"><Icons.clock className="w-5 h-5 text-[#334155]/60" /><span>{formatDateTime(event.dateTime)}</span></div>
+                                <div className="flex items-center gap-3"><Icons.mapPin className="w-5 h-5 text-[#334155]/60" /><span>{event.location}</span></div>
+                                <div className="flex items-center gap-3"><Icons.user className="w-5 h-5 text-[#334155]/60" /><span>Skapad av <strong>{creator?.name || 'Okänd'}</strong></span></div>
+                            </div>
+                            <div>
+                                <h3 className="font-semibold mb-2 text-[#334155]">Vem kommer? ({attendees.length})</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {attendees.map(attendee => (
+                                        <div key={attendee.userID} className="flex items-center gap-2 pr-3 py-1 bg-slate-100 text-[#334155] rounded-full text-sm">
+                                            <div className="w-6 h-6 rounded-full bg-[#F5EBE0] flex items-center justify-center font-bold text-[#334155]/70 text-xs">
+                                                {attendee.name.charAt(0)}
+                                            </div>
+                                            {attendee.name}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        {hasJoined ? (
+                            <ChatComponent eventId={eventId} messages={chatMessages[eventId] || []} users={users} currentUser={currentUser} onSendMessage={onSendMessage} />
+                        ) : (
+                            <div className="bg-white p-8 rounded-xl shadow-sm text-center">
+                                <p className="font-semibold text-[#334155]">Gå med för att se chatten</p>
+                                <p className="text-sm text-[#334155]/70 mt-1">Prata med andra deltagare genom att anmäla dig till träffen.</p>
+                            </div>
+                        )}
+                    </main>
+                    <footer className="p-4 bg-white/80 backdrop-blur-sm border-t border-slate-200/50">
+                        {hasJoined ? (
+                            <button onClick={() => onLeave(event.eventID)} className="w-full text-red-700 font-semibold py-3 px-4 rounded-full bg-red-100 hover:bg-red-200 transition-all duration-300 shadow-sm">
+                                Gå ut från träff
+                            </button>
+                        ) : (
+                            <ActionButton onClick={() => onJoin(event.eventID)}>
+                                Gå med i träff
+                            </ActionButton>
+                        )}
+                    </footer>
+                </div>
+            );
+        };
+
+        const CreateEventScreen = ({ currentUser, onCreate, onNavigate }) => {
+            const [title, setTitle] = useState('');
+            const [category, setCategory] = useState('Fika');
+            const [location, setLocation] = useState('');
+            const [date, setDate] = useState('');
+            const [time, setTime] = useState('');
+            const [description, setDescription] = useState('');
+            const [isGenerating, setIsGenerating] = useState(false);
+            const today = new Date().toISOString().split('T')[0];
+            
+            const generateAIDescription = () => {
+                setIsGenerating(true);
+                setTimeout(() => {
+                    const templates = {
+                        'Fika': [`En trevlig fika för att snacka och umgås. Vi ses vid ${location || 'angiven plats'} runt ${time || 'utsatt tid'} för lite kaffe och gott sällskap.`, `Dags för en kaffepaus! Jag bjuder in till en avslappnad fika på ${location || 'trevligt ställe'} vid ${time || 'passande tid'}. Hoppas vi ses!`],
+                        'Walk': [`Häng med på en uppfriskande promenad vid ${location || 'vårt mötesställe'}. Vi tar en skön tur och njuter av omgivningen, startar runt ${time || 'utsatt tid'}.`],
+                        'Cinema': [`Biokväll! Vi ser "${title || 'den nya filmen'}" på ${location || 'biografen'}. Samling utanför en stund innan filmen börjar vid ${time || 'utsatt tid'}.`],
+                        'Sport': [`Dags att röra på sig! ${title || 'En rolig sportaktivitet'} vid ${location || 'platsen'}. Perfekt för att få upp pulsen och ha kul tillsammans. Starttid är ${time || 'ca tid'}.`],
+                        'Middag': [`Gemensam middag på ${location || 'restaurangen'}. En kväll med god mat och härligt sällskap. Bokat bord från kl ${time || 'utsatt tid'}.`],
+                        'Lunch': [`Lunchdejt! Vi käkar på ${location || 'stället'} runt ${time || 'lunchtid'}. Ett perfekt avbrott i dagen.`],
+                        'Shopping': [`Shoppingrunda på ${location || 'stan'}. Oavsett om du letar efter något speciellt eller bara vill fönstershoppa, häng på! Vi börjar runt ${time || 'utsatt tid'}.`],
+                        'Annat': [`En avslappnad träff: ${title || ''}. Vi träffas vid ${location || 'utsatt plats'} runt ${time || 'starttid'}. Hoppas vi ses!`]
+                    };
+                    const categoryTemplates = templates[category] || templates['Annat'];
+                    const randomIndex = Math.floor(Math.random() * categoryTemplates.length);
+                    const randomTemplate = categoryTemplates[randomIndex];
+                    setDescription(randomTemplate);
+                    setIsGenerating(false);
+                }, 1000);
+            };
+            
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const newEvent = {
+                    eventID: Date.now(), title, description, category, location, dateTime: `${date}T${time}:00`, creatorUserID: currentUser.userID, attendeeUserIDs: [currentUser.userID]
+                };
+                onCreate(newEvent);
+            };
+            
+            return (
+                <div className="flex flex-col h-full bg-[#F9FAFB]">
+                    <header className="p-4 flex items-center justify-center border-b border-slate-200/50 bg-white/50 backdrop-blur-sm">
+                        <h1 className="text-xl font-semibold text-[#8F9D81]">Skapa ny träff</h1>
+                    </header>
+                    <main className="flex-grow overflow-y-auto p-6">
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="text-sm font-bold text-[#334155]">Titel</label>
+                                <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className="w-full mt-1 p-2 border border-slate-200/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white" />
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-[#334155]">Kategori</label>
+                                <select value={category} onChange={e => setCategory(e.target.value)} className="w-full mt-1 p-2 border border-slate-200/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white">
+                                    <option>Fika</option> <option>Walk</option> <option>Cinema</option> <option>Sport</option> <option>Middag</option> <option>Lunch</option> <option>Shopping</option> <option>Annat</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-[#334155]">Plats</label>
+                                <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} required className="w-full mt-1 p-2 border border-slate-200/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white" />
+                            </div>
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="text-sm font-bold text-[#334155]">Datum</label>
+                                    <div className="relative mt-1">
+                                        <input type="date" value={date} min={today} onChange={e => setDate(e.target.value)} required className="w-full p-2 pr-10 border border-slate-200/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white appearance-none" />
+                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none"><Icons.calendar className="w-5 h-5 text-slate-400" /></div>
+                                    </div>
+                                </div>
+                                <div className="flex-1">
+                                    <label className="text-sm font-bold text-[#334155]">Tid</label>
+                                     <div className="relative mt-1">
+                                        <input type="time" step="900" value={time} onChange={e => setTime(e.target.value)} required className="w-full mt-1 p-2 pr-10 border border-slate-200/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white appearance-none" />
+                                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none"><Icons.clock className="w-5 h-5 text-slate-400" /></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between items-center">
+                                    <label className="text-sm font-bold text-[#334155]">Beskrivning</label>
+                                    <button type="button" onClick={generateAIDescription} disabled={isGenerating} className="text-sm text-[#8F9D81] hover:underline font-semibold disabled:opacity-50">{isGenerating ? 'Genererar...' : 'Generera med AI'}</button>
+                                </div>
+                                <textarea value={description} onChange={e => setDescription(e.target.value)} required rows="4" className="w-full mt-1 p-2 border border-slate-200/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8F9D81] bg-white"></textarea>
+                            </div>
+                            <div className="pt-2"><ActionButton type="submit">Skapa träff</ActionButton></div>
+                        </form>
+                    </main>
+                </div>
+            );
+        };
+
+        const MyEventsScreen = ({ events, currentUser, onNavigate }) => {
+            const now = new Date();
+            const upcomingJoined = events.filter(e => e.attendeeUserIDs.includes(currentUser.userID) && new Date(e.dateTime) >= now);
+            const pastJoined = events.filter(e => e.attendeeUserIDs.includes(currentUser.userID) && new Date(e.dateTime) < now);
+            const createdEvents = events.filter(e => e.creatorUserID === currentUser.userID);
+            const EmptyState = ({icon, title, text}) => (
+                <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto bg-slate-100 rounded-full flex items-center justify-center">{React.createElement(icon, { className: "w-8 h-8 text-slate-400" })}</div>
+                    <h3 className="mt-4 text-lg font-semibold text-[#334155]">{title}</h3>
+                    <p className="mt-1 text-sm text-[#334155]/70">{text}</p>
+                </div>
+            );
+            return (
+                <div className="flex flex-col h-full bg-[#F9FAFB]">
+                    <header className="p-6 border-b border-slate-200/50 bg-[#F9FAFB]/80 backdrop-blur-sm sticky top-0 z-10"><h1 className="text-3xl font-bold text-[#8F9D81]">Mina träffar</h1></header>
+                    <main className="flex-grow overflow-y-auto p-6 space-y-8">
+                         <div>
+                            <h2 className="text-lg font-semibold text-[#334155] mb-3">Anmäld till ({upcomingJoined.length})</h2>
+                            {upcomingJoined.length > 0 ? (<div className="space-y-2">{upcomingJoined.map(event => (<div key={event.eventID} onClick={() => onNavigate('details', event.eventID)} className="bg-white p-3 rounded-lg cursor-pointer hover:bg-slate-100/60 transition-colors"><p className="font-semibold text-[#334155]">{event.title}</p><p className="text-sm text-[#334155]/70">{formatDateTime(event.dateTime)}</p></div>))}</div>) : (<EmptyState icon={Icons.calendar} title="Inga kommande träffar" text="Gå med i en träff för att se den här." />)}
+                        </div>
+                         <div>
+                            <h2 className="text-lg font-semibold text-[#334155] mb-3">Mina skapade träffar ({createdEvents.length})</h2>
+                            {createdEvents.length > 0 ? (<div className="space-y-2">{createdEvents.map(event => (<div key={event.eventID} onClick={() => onNavigate('details', event.eventID)} className="bg-white p-3 rounded-lg cursor-pointer hover:bg-slate-100/60 transition-colors"><p className="font-semibold text-[#334155]">{event.title}</p><p className="text-sm text-[#334155]/70">{formatDateTime(event.dateTime)}</p></div>))}</div>) : (<EmptyState icon={Icons.plus} title="Du har inte skapat något" text="Klicka på plus-knappen för att skapa din första träff." />)}
+                         </div>
+                         {pastJoined.length > 0 && (<div><h2 className="text-lg font-semibold text-[#334155] mb-3">Tidigare träffar ({pastJoined.length})</h2><div className="space-y-2">{pastJoined.map(event => (<div key={event.eventID} onClick={() => onNavigate('details', event.eventID)} className="bg-white p-3 rounded-lg cursor-pointer hover:bg-slate-100/60 transition-colors opacity-60"><p className="font-semibold text-[#334155]">{event.title}</p><p className="text-sm text-[#334155]/70">{formatDateTime(event.dateTime)}</p></div>))}</div></div>)}
+                    </main>
+                </div>
+            );
+        };
+
+        const ProfileScreen = ({ currentUser, onLogout }) => (
+            <div className="flex flex-col h-full bg-[#F9FAFB]">
+                <header className="p-6 border-b border-slate-200/50 bg-[#F9FAFB]/80 backdrop-blur-sm sticky top-0 z-10"><h1 className="text-3xl font-bold text-[#8F9D81]">Profil</h1></header>
+                <main className="flex-grow p-6 flex flex-col items-center justify-center text-center space-y-4">
+                    <div className="w-24 h-24 rounded-full bg-[#F5EBE0] flex items-center justify-center text-4xl font-bold text-[#334155]">{currentUser.name.charAt(0)}</div>
+                    <h2 className="text-2xl font-bold text-[#334155]">{currentUser.name}</h2>
+                    <p className="text-[#334155]/80">{currentUser.email}</p>
+                    <button onClick={onLogout} className="mt-8 flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-[#334155]/80 hover:underline">
+                        <Icons.logOut className="w-5 h-5" />
+                        <span>Logga ut</span>
+                    </button>
+                </main>
+            </div>
+        );
+
+        const Toast = ({ message, show }) => {
+            if (!show) return null;
+            return (<div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#334155] text-white px-4 py-2 rounded-full text-sm shadow-lg animate-fade-in-out">{message}</div>);
+        };
+
+        const ChatListScreen = ({ events, currentUser, onNavigate, chatMessages, onSendMessage, users }) => {
+            const [expandedChatId, setExpandedChatId] = useState(null);
+            const joinedEvents = events.filter(e => e.attendeeUserIDs.includes(currentUser.userID));
+            const handleToggleChat = (eventId) => {
+                setExpandedChatId(prevId => prevId === eventId ? null : eventId);
+            };
+
+            const EmptyState = () => (
+                <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto bg-slate-100 rounded-full flex items-center justify-center">
+                        <Icons.messageCircle className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <h3 className="mt-4 text-lg font-semibold text-[#334155]">Inga chattar än</h3>
+                    <p className="mt-1 text-sm text-[#334155]/70">Gå med i en träff för att börja chatta.</p>
+                </div>
+            );
+
+            return (
+                <div className="flex flex-col h-full bg-[#F9FAFB]">
+                    <header className="p-6 border-b border-slate-200/50 bg-[#F9FAFB]/80 backdrop-blur-sm sticky top-0 z-10">
+                        <h1 className="text-3xl font-bold text-[#8F9D81]">Chattar</h1>
+                    </header>
+                    <main className="flex-grow overflow-y-auto p-6 space-y-2">
+                        {joinedEvents.length > 0 ? (
+                            joinedEvents.map(event => {
+                                const lastMessage = chatMessages[event.eventID]?.[chatMessages[event.eventID].length - 1];
+                                return (
+                                    <div key={event.eventID} className="bg-white rounded-lg shadow-sm transition-all">
+                                        <div onClick={() => handleToggleChat(event.eventID)} className="p-3 cursor-pointer hover:bg-slate-100/60">
+                                            <p className="font-semibold text-[#334155]">{event.title}</p>
+                                            <p className="text-sm text-[#334155]/70 truncate">
+                                                {lastMessage ? `${USERS.find(u => u.userID === lastMessage.userID)?.name}: ${lastMessage.text}` : "Inga meddelanden än"}
+                                            </p>
+                                        </div>
+                                        {expandedChatId === event.eventID && (
+                                            <div className="p-4 border-t border-slate-200/80">
+                                                 <ChatComponent eventId={event.eventID} messages={chatMessages[event.eventID] || []} users={users} currentUser={currentUser} onSendMessage={onSendMessage} />
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <EmptyState />
+                        )}
+                    </main>
+                </div>
+            );
+        };
+        
+        function App() {
+            const [currentUser, setCurrentUser] = useState(null);
+            const [users, setUsers] = useState(USERS);
+            const [events, setEvents] = useState(INITIAL_EVENTS);
+            const [view, setView] = useState({ name: 'login', payload: null });
+            const [chatMessages, setChatMessages] = useState(INITIAL_CHAT_MESSAGES);
+            const [toast, setToast] = useState({ show: false, message: '' });
+
+            useEffect(() => {
+                if (toast.show) {
+                    const timer = setTimeout(() => {
+                        setToast({ show: false, message: '' });
+                    }, 3000);
+                    return () => clearTimeout(timer);
+                }
+            }, [toast]);
+
+            const showToast = (message) => {
+                setToast({ show: true, message });
+            };
+
+            const loginUsers = users.filter(u => u.name === 'Filip');
+
+            const handleLogin = (user) => {
+                setCurrentUser(user);
+                setView({ name: 'home', payload: null });
+            };
+            
+            const handleLogout = () => {
+                setCurrentUser(null);
+              setView({ name: 'login', payload: null });
+            };
+
+            const handleNavigate = (viewName, payload = null) => {
+                setView({ name: viewName, payload });
+            };
+            
+            const handleCreateEvent = (newEvent) => {
+                setEvents([newEvent, ...events]);
+                handleNavigate('home');
+                showToast('Din träff har skapats!');
+            };
+            
+            const handleJoinEvent = (eventId) => {
+                setEvents(prevEvents => prevEvents.map(event => {
+                    if (event.eventID === eventId && !event.attendeeUserIDs.includes(currentUser.userID)) {
+                        return { ...event, attendeeUserIDs: [...event.attendeeUserIDs, currentUser.userID] };
+                    }
+                    return event;
+                }));
+                showToast('Du är nu med i träffen!');
+            };
+
+            const handleLeaveEvent = (eventId) => {
+                setEvents(prevEvents => prevEvents.map(event => {
+                    if (event.eventID === eventId) {
+                        return { ...event, attendeeUserIDs: event.attendeeUserIDs.filter(id => id !== currentUser.userID) };
+                    }
+                    return event;
+                }));
+                showToast('Du har lämnat träffen.');
+            };
+
+            const handleSignUp = (newUserData) => {
+                const newUser = {
+                    ...newUserData,
+                    userID: users.length + 1 + Date.now(),
+                };
+                setUsers([...users, newUser]);
+                setCurrentUser(newUser);
+              setView({ name: 'home', payload: null });
+            };
+
+            const handleSendMessage = (eventId, text) => {
+                const newMessage = {
+                    messageID: Date.now(),
+                    userID: currentUser.userID,
+                    text: text,
+                    timestamp: new Date().toISOString()
+                };
+                setChatMessages(prevMessages => ({
+                    ...prevMessages,
+                    [eventId]: [...(prevMessages[eventId] || []), newMessage]
+                }));
+            };
+
+            const renderView = () => {
+                if (!currentUser) {
+                    switch(view.name) {
+                        case 'signup':
+                            return <SignUpScreen onSignUp={handleSignUp} onNavigate={handleNavigate} />;
+                        default:
+                            return <LoginScreen users={loginUsers} onLogin={handleLogin} onNavigate={handleNavigate} />;
+                    }
+                }
+                
+                let mainContent;
+                switch (view.name) {
+                    case 'details':
+                        mainContent = <EventDetailsScreen 
+                            eventId={view.payload} 
+                            events={events} 
+                            users={users} 
+                            currentUser={currentUser} 
+                            onJoin={handleJoinEvent} 
+                            onLeave={handleLeaveEvent}
+                            onNavigate={handleNavigate}
+                            chatMessages={chatMessages}
+                            onSendMessage={handleSendMessage}
+                        />;
+                        break;
+                    case 'create':
+                        mainContent = <CreateEventScreen currentUser={currentUser} onCreate={handleCreateEvent} onNavigate={handleNavigate} />;
+                        break;
+                    case 'my-events':
+                        mainContent = <MyEventsScreen events={events} currentUser={currentUser} onNavigate={handleNavigate} />;
+                        break;
+                    case 'chat':
+                        mainContent = <ChatListScreen events={events} currentUser={currentUser} onNavigate={handleNavigate} chatMessages={chatMessages} onSendMessage={handleSendMessage} users={users} />;
+                        break;
+                    case 'profile':
+                        mainContent = <ProfileScreen currentUser={currentUser} onLogout={handleLogout} />;
+                        break;
+                    default:
+                        mainContent = <HomeScreen events={events} onNavigate={handleNavigate} currentUser={currentUser} />;
+                }
+
+                const showBottomNav = ['home', 'my-events', 'chat', 'profile'].includes(view.name);
+                
+                return (
+                    <div className="h-full flex flex-col relative">
+                        <div className="flex-grow overflow-y-auto">
+                            {mainContent}
+                        </div>
+                        {view.name === 'home' && (
+                             <button 
+                                onClick={() => handleNavigate('create')} 
+                                className="absolute bottom-24 left-1/2 -translate-x-1/2 w-14 h-14 rounded-full bg-[#8F9D81] text-white shadow-lg flex items-center justify-center hover:opacity-90 transition-opacity"
+                            >
+                                <Icons.plus className="w-8 h-8" />
+                            </button>
+                        )}
+                        {showBottomNav && <BottomNav activeView={view.name} onNavigate={handleNavigate} />}
+                    </div>
+                );
+            };
+
+            return (
+                <div className="bg-[#F9FAFB] min-h-screen flex justify-center">
+                    <div className="w-full max-w-sm bg-[#F9FAFB] shadow-lg flex flex-col">
+                        {renderView()}
+                    </div>
+                     <Toast message={toast.message} show={toast.show} />
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
+
